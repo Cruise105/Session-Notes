@@ -1,5 +1,5 @@
 // Offline support. Bump VERSION whenever any app file changes.
-const VERSION = 'session-notes-v34';
+const VERSION = 'session-notes-v35';
 const FILES = [
   './', 'index.html', 'styles.css', 'app.js', 'db.js', 'calendar.js', 'ink.js', 'sync.js', 'weather.js', 'health.js', 'downtime.js', 'outbreaks.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',

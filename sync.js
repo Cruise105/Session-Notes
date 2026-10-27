@@ -83,6 +83,11 @@ function loadGis() {
 
 // Interactive sign-in needs a tap (browsers block the popup otherwise)
 async function signIn() {
+  // Stay signed in through the suite's key keeper when it's set up; the one-hour sign-in below if it isn't (or fails)
+  if (core?.keeperReady?.()) {
+    try { const t = await core.signInLong(SCOPE, { app: 'session-notes' }); tok.value = t.value; tok.exp = t.exp; saveToken(); return; }
+    catch (e) { if (/closed before/.test(e.message)) throw e; console.warn('key keeper', e); }
+  }
   await loadGis();
   return new Promise((resolve, reject) => {
     tokenClient = google.accounts.oauth2.initTokenClient({
