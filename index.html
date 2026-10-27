@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Session Notes</title>
+<meta name="description" content="Session notes, party roster and in-game calendar for the DM's table.">
+<meta name="theme-color" content="#f3eee4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171411" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="brand-name">Session Notes</span>
+    <button class="campaign-name" id="campaignBtn" title="Campaigns and settings"></button>
+  </div>
+  <button class="wx-chip" id="wxBtn" data-goto="world"></button>
+  <button class="clock" id="clockBtn" aria-label="In-game date and time. Tap to change.">
+    <span class="clock-moons" id="clockMoons"></span>
+    <span class="clock-text"><span class="clock-date" id="clockDate"></span><span class="clock-time" id="clockTime"></span></span>
+  </button>
+  <div class="top-actions">
+    <button class="sync-btn" id="syncBtn" type="button" hidden data-state="off">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.34 9.1 4 4 0 0 0 6.5 19z"/></svg>
+      <span class="syncword">Synced</span>
+    </button>
+    <button class="icon-btn" id="settingsBtn" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+    </button>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Sections">
+  <button role="tab" data-view="session">Session</button>
+  <button role="tab" data-view="party">Party</button>
+  <button role="tab" data-view="world">World</button>
+  <button role="tab" data-view="calendar">Calendar</button>
+  <button role="tab" data-view="history">History</button>
+</nav>
+
+<main id="view" tabindex="-1"></main>
+
+<div id="inkView" class="ink-view" hidden></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<dialog id="expDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog" id="expForm">
+    <h2>Log an exposure</h2>
+    <p class="muted small">Contact starts the incubation period. When it's over, the app asks you for the Infection check (Constitution save).</p>
+    <div class="field"><span>Who was exposed?</span><div id="expPcs" class="check-grid"></div></div>
+    <label class="field"><span>Disease</span><select name="disease" id="expDisease"></select></label>
+    <label class="field"><span>How</span><select name="route">
+      <option>Direct contact: touched someone infected, or blood, sweat or pus</option>
+      <option>Indirect contact: touched something contaminated</option>
+      <option>Bite: a fly, tick, leech or diseased creature</option>
+      <option>Consumption: bad water or food</option>
+      <option>Air: within 5 feet, or a contaminated room</option>
+    </select></label>
+    <label class="check"><input type="checkbox" name="disadv"> <span>Open wounds, or exposed more than once: the Infection check has disadvantage</span></label>
+    <p class="muted small" id="expNote"></p>
+    <div class="row"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="save">Log exposure</button></div>
+  </form>
+</dialog>
+
+<dialog id="checkDlg" class="dlg-wrap">
+  <form class="dlg narrow" method="dialog">
+    <h2 id="checkTitle"></h2>
+    <div id="checkBody"></div>
+    <div class="row"><button class="btn" value="cancel">Not yet</button><button class="btn" value="failure">Failed</button><button class="btn primary" value="success">Succeeded</button></div>
+  </form>
+</dialog>
+
+<dialog id="magicDlg" class="dlg-wrap">
+  <form class="dlg narrow" method="dialog" id="magicForm">
+    <h2>Treated with magic</h2>
+    <p class="muted small">Darker Dungeons: magic doesn't purge a disease at once, it sends it into decline, if the magic is strong enough for the disease's DC.</p>
+    <label class="field"><span>The magic used</span><select name="level">
+      <option value="5">Lesser Restoration, Lay on Hands, or other magic up to 5th level (works up to DC 15)</option>
+      <option value="8">6th to 8th level, like Heal (works up to DC 25)</option>
+      <option value="9">9th level, like Mass Heal (works up to DC 30)</option>
+    </select></label>
+    <div class="row"><button class="btn" value="cancel">Cancel</button><button class="btn primary" value="save">Apply</button></div>
+  </form>
+</dialog>
+
+<dialog id="disDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog" id="disForm">
+    <h2 id="disTitle">Disease</h2>
+    <div class="field-row">
+      <label class="field"><span>Name</span><input name="name" required autocomplete="off"></label>
+      <label class="field"><span>Transmission</span><input name="transmission" autocomplete="off" placeholder="Touch, Air"></label>
+    </div>
+    <div class="field-row three">
+      <label class="field"><span>Rarity</span><select name="rarity"><option>Common</option><option>Rare</option><option>Mythic</option></select></label>
+      <label class="field"><span>DC</span><select name="dc"><option>5</option><option>10</option><option>15</option><option>20</option><option>25</option><option>30</option></select></label>
+      <label class="field"><span>Incubation</span><span class="inline-pair"><input name="incN" type="number" inputmode="numeric" min="1" value="1"><select name="incU"><option value="1">days</option><option value="7">weeks</option></select></span></label>
+    </div>
+    <p class="muted small">DC 5–10: most people shake it off. 15–20: needs bed rest or medicine. 25–30: almost no one recovers. Incubation is also how often it can get worse.</p>
+    <label class="field"><span>Description</span><textarea name="description" rows="2"></textarea></label>
+    <label class="field"><span>Stage 1</span><textarea name="s1" rows="2"></textarea></label>
+    <label class="field"><span>Stage 2</span><textarea name="s2" rows="2"></textarea></label>
+    <label class="field"><span>Stage 3</span><textarea name="s3" rows="2"></textarea></label>
+    <label class="field"><span>Stage 4</span><textarea name="s4" rows="2"></textarea></label>
+    <label class="field"><span>When cured</span><textarea name="cured" rows="2"></textarea></label>
+    <p class="muted small">Effects add up: stage 3 has stages 1 to 3. Writing "gain thirst at twice the normal rate" (or hunger, or fatigue) makes the survival tracker double it.</p>
+    <details class="fxedit"><summary>What each stage does on the character sheet</summary>
+      <p class="muted small">Normally read from the stage's own text ("-2 DEX and -2 WIS", "disadvantage on all rolls"). To change it, write it here the same way; leave a box empty to go back to reading the stage.</p>
+      <label class="field"><span>Stage 1 on the sheet</span><input name="fx1" autocomplete="off"><small class="fxread" data-fx="1"></small></label>
+      <label class="field"><span>Stage 2 on the sheet</span><input name="fx2" autocomplete="off"><small class="fxread" data-fx="2"></small></label>
+      <label class="field"><span>Stage 3 on the sheet</span><input name="fx3" autocomplete="off"><small class="fxread" data-fx="3"></small></label>
+      <label class="field"><span>Stage 4 on the sheet</span><input name="fx4" autocomplete="off"><small class="fxread" data-fx="4"></small></label>
+    </details>
+    <div class="row">
+      <button class="btn danger-text" type="button" id="disDelete">Delete disease</button><span class="spacer"></span>
+      <button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="obDlg" class="dlg-wrap">
+  <form class="dlg narrow" method="dialog" id="obForm">
+    <h2>Start an outbreak</h2>
+    <label class="field"><span>Where</span><select name="loc" id="obLoc"></select></label>
+    <label class="field"><span>Disease</span><select name="disease" id="obDisease"></select></label>
+    <label class="field"><span>Note</span><input name="note" autocomplete="off" placeholder="Started in the refugee camps"></label>
+    <div class="row"><button class="btn" value="cancel">Cancel</button><button class="btn primary" value="save">Start it</button></div>
+  </form>
+</dialog>
+
+<dialog id="gearDlg" class="dlg-wrap">
+  <form class="dlg narrow" method="dialog" id="gearForm">
+    <h2 id="gearTitle">Protection</h2>
+    <label class="check"><input type="checkbox" name="coldGear"> <span>Cold weather gear: thick furs and cloaks (2 stages better in the cold)</span></label>
+    <label class="check"><input type="checkbox" name="coldAdapted"> <span>Adapted to cold climates (1 stage better)</span></label>
+    <label class="check"><input type="checkbox" name="coldRes"> <span>Resistant or immune to cold damage (never worse than Noticeable)</span></label>
+    <label class="check"><input type="checkbox" name="heatAdapted"> <span>Adapted to hot climates (1 stage better in the heat)</span></label>
+    <label class="check"><input type="checkbox" name="heatRes"> <span>Resistant or immune to fire damage (never worse than Noticeable)</span></label>
+    <label class="check"><input type="checkbox" name="everyone"> <span><b>Give the whole party this same protection</b></span></label>
+    <p class="muted small">Being indoors or sheltered is set for the whole party on the Survival card. These step sizes are homebrew; Darker Dungeons leaves them to the GM.</p>
+    <div class="row"><button class="btn" value="cancel">Cancel</button><button class="btn primary" value="save">Save</button></div>
+  </form>
+</dialog>
+
+<dialog id="stamDlg" class="dlg-wrap">
+  <form class="dlg narrow" method="dialog">
+    <h2 id="stamTitle">Stamina check</h2>
+    <div id="stamBody"></div>
+    <div class="row" id="stamRow"><button class="btn" value="cancel">Cancel</button><button class="btn" type="button" id="stamFail">Failed</button><button class="btn primary" value="ok">Succeeded</button></div>
+    <div id="stamD6" hidden>
+      <p><b>Roll a d6 and tap the result:</b></p>
+      <div class="d6-grid"><button class="btn" type="button" data-d6="hunger">1–2: +1 hunger</button><button class="btn" type="button" data-d6="thirst">3–4: +1 thirst</button><button class="btn" type="button" data-d6="fatigue">5–6: +1 fatigue</button></div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="pastDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog" id="pastForm">
+    <h2>Add a past session</h2>
+    <p class="muted small">For sessions from before the app. This only adds to your history: it doesn't move the campaign's date, the party, or anything else.</p>
+    <div class="field-row">
+      <label class="field"><span>Session number</span><input name="number" type="number" inputmode="numeric" min="1" required></label>
+      <label class="field"><span>Played on (real date)</span><input name="realDate" type="date"></label>
+    </div>
+    <div class="field"><span>In-game start</span><div id="pastStart"></div></div>
+    <div class="field"><span>In-game end</span><div id="pastEnd"></div></div>
+    <label class="field"><span>Where the party was</span><select name="loc" id="pastLoc"></select></label>
+    <div class="field"><span>Who was absent</span><div id="pastAbsent" class="check-grid"></div></div>
+    <label class="field"><span>Notes</span><textarea name="notes" rows="8" placeholder="Write with the S Pen, or paste notes you typed somewhere else"></textarea></label>
+    <label class="field"><span>Shopping notes</span><textarea name="shopping" rows="2"></textarea></label>
+    <p class="muted small">Ink pages can be added afterward, from the session itself.</p>
+    <div class="row">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn" value="another">Save and add another</button>
+      <button class="btn primary" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="trainDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog" id="trainForm">
+    <h2 id="trainTitle">Start training</h2>
+    <p class="muted small" id="trainEditNote" hidden>After an ASI or a new trainer, change the modifier or trainer here. The share of the training already done is kept, and only the rest is recalculated. Change the start date only to fix a mistake.</p>
+    <div class="field-row">
+      <label class="field"><span>Who</span><select name="pc" id="trainPc"></select></label>
+      <label class="field"><span>Training in</span><select name="kind" id="trainKind"></select></label>
+    </div>
+    <div class="field-row" id="trainWhatRow">
+      <label class="field" id="trainWhatWrap"><span id="trainWhatLabel">What</span><span id="trainWhat"></span></label>
+      <label class="field" id="trainSubWrap"><span id="trainSubLabel">Type</span><select name="sub" id="trainSub"></select></label>
+    </div>
+    <div class="field-row">
+      <label class="field"><span>Linked ability</span><select name="ability" id="trainAbility"></select></label>
+      <label class="field"><span>Their modifier for it</span><input name="mod" type="number" inputmode="numeric" min="-5" max="10" value="0" required></label>
+    </div>
+    <div class="field-row">
+      <label class="field"><span>Trainer</span><select name="trainer" id="trainTrainer"></select></label>
+      <label class="field"><span>Trainer's name</span><input name="trainerName" autocomplete="off" placeholder="Optional"></label>
+    </div>
+    <label class="check"><input type="checkbox" name="partyMember"> <span>The trainer is a party member (no fee)</span></label>
+    <p class="muted small" id="trainRule"></p>
+    <label class="field"><span>Cost per day (gp)</span><input name="cost" type="number" inputmode="decimal" min="0" step="0.1"></label>
+    <div class="field"><span>Started on (in game)</span><div id="trainStart"></div></div>
+    <div class="field-row">
+      <label class="field"><span>Or: time left (days)</span><input name="left" type="number" inputmode="numeric" min="0" placeholder="e.g. 7 for one week"></label>
+      <p class="muted small" style="align-self:end">Already training before the app? Set the day they started, or just how much is left, and the start date is worked out for you.</p>
+    </div>
+    <div class="preview" id="trainPreview"></div>
+    <div class="row"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="save" id="trainSave">Start training</button></div>
+  </form>
+</dialog>
+
+<dialog id="tradeDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog" id="tradeForm">
+    <h2 id="tradeTitle">Item broker</h2>
+    <div class="field-row">
+      <label class="field"><span>For</span><select name="pc" id="tradePc"></select></label>
+      <label class="field"><span>Item</span><input name="item" required autocomplete="off" placeholder="+1 Wand of the War Mage"></label>
+    </div>
+    <div class="field-row">
+      <label class="field"><span>Rarity</span><select name="rarity" id="tradeRarity"></select></label>
+      <label class="field"><span>Base value (gp)</span><input name="base" type="number" inputmode="numeric" min="0" required></label>
+    </div>
+    <label class="field"><span>The broker's 20% fee</span><select name="timing"><option value="delivery">On delivery, on the actual price</option><option value="upfront">Up front: a deposit on the estimated value, settled on delivery</option></select></label>
+    <p class="muted small" id="tradeHint"></p>
+    <div class="steps">
+      <label class="field step"><span id="tradeFindLabel">1. Roll d100</span><input name="d100" type="number" inputmode="numeric" min="1" max="100" placeholder="1–100"></label>
+      <label class="field step"><span id="tradeWeeksLabel">2. Weeks</span><input name="weeks" type="number" inputmode="numeric" min="1"></label>
+      <label class="field step"><span id="tradeD6Label">3. Roll d6</span><input name="d6" type="number" inputmode="numeric" min="1" max="6"></label>
+      <label class="field step"><span id="tradePctLabel">4. Percent</span><span class="inline-pair"><input name="pct" type="number" inputmode="numeric"><button type="button" class="btn small" id="tradePick">Pick in range</button></span></label>
+    </div>
+    <div class="preview" id="tradePreview"></div>
+    <div class="row"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="save" id="tradeSave">Save</button></div>
+  </form>
+</dialog>
+
+<div id="updateBar" class="update-bar" hidden><span>A new version of Session Notes is ready.</span><button class="btn primary small" type="button">Restart now</button></div>
+
+<dialog id="locPickDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog">
+    <h2>Where is the party?</h2>
+    <label class="search"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="locSearch" type="search" placeholder="Search locations" autocomplete="off" aria-label="Search locations"></label>
+    <div id="locPickList" class="pick-list"></div>
+    <div class="row"><button class="btn" value="cancel">Cancel</button></div>
+  </form>
+</dialog>
+
+<dialog id="locDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog" id="locForm">
+    <h2 id="locTitle">Location</h2>
+    <div class="field-row">
+      <label class="field"><span>Name</span><input name="name" required autocomplete="off"></label>
+      <label class="field"><span>Region</span><input name="region" list="regionList" autocomplete="off" placeholder="The North"></label>
+    </div>
+    <datalist id="regionList"></datalist>
+    <label class="field"><span>Climate type</span><select name="climate" id="locClimate"></select></label>
+    <div class="field-row three">
+      <label class="field"><span>Hemisphere</span><select name="hemisphere"><option value="north">North</option><option value="south">South (seasons flip)</option></select></label>
+      <label class="field"><span>Temperature adjust (°F)</span><input name="tempAdjust" type="number" inputmode="numeric" step="1"></label>
+      <label class="field"><span>Wind</span><select name="wind"><option value="-1">Sheltered (forest)</option><option value="0">Normal</option><option value="1">Windy (open ground)</option></select></label>
+    </div>
+    <label class="field"><span>Population (for outbreaks)</span><select name="pop"><option value="city">City</option><option value="town">Town or village</option><option value="wild">Wilderness</option></select></label>
+    <label class="check"><input type="checkbox" name="fog"> <span>Often foggy</span></label>
+    <label class="check"><input type="checkbox" name="overcast"> <span>Always overcast: the sun never shows clearly</span></label>
+    <label class="field"><span>Notes</span><textarea name="notes" rows="2"></textarea></label>
+    <label class="check"><input type="checkbox" name="hasOverride"> <span><b>Magical weather override</b>, like the Everlasting Rime</span></label>
+    <div id="ovFields" class="ov-fields">
+      <div class="field-row">
+        <label class="field"><span>Name</span><input name="ovName" autocomplete="off" placeholder="The Everlasting Rime"></label>
+        <label class="field"><span>Use this climate's numbers</span><select name="ovClimate" id="ovClimate"></select></label>
+      </div>
+      <label class="check"><input type="checkbox" name="ovActive"> <span>Active right now (untick when the magic breaks)</span></label>
+      <label class="check"><input type="checkbox" name="ovLock"> <span>Winter all year: no thaw, no summer</span></label>
+      <label class="check"><input type="checkbox" name="ovTwilight"> <span>Perpetual twilight: dim light all day, no sunrise or sunset</span></label>
+      <div class="field-row">
+        <label class="field"><span>Chance of rain or snow per day (%)</span><input name="ovWet" type="number" inputmode="numeric" min="0" max="100" placeholder="Climate's normal"></label>
+        <label class="field"><span>Daylight hours</span><input name="ovDaylight" type="number" inputmode="decimal" min="0" max="24" step="0.5" placeholder="Location's normal"></label>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn danger-text" type="button" id="locDelete">Delete location</button>
+      <span class="spacer"></span>
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="wxDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog" id="wxForm">
+    <h2>Set today's weather</h2>
+    <p class="muted small">For when the story calls for it. Tomorrow's roll can carry it on, the same as rolled weather.</p>
+    <div class="field-row">
+      <label class="field"><span>Night low (°F)</span><input name="low" type="number" inputmode="numeric" required></label>
+      <label class="field"><span>Day high (°F)</span><input name="high" type="number" inputmode="numeric" required></label>
+    </div>
+    <div class="field-row three">
+      <label class="field"><span>Rain or snow</span><select name="precip"><option value="0">None</option><option value="1">Light</option><option value="2">Heavy</option></select></label>
+      <label class="field"><span>Wind</span><select name="wind"><option value="0">Calm</option><option value="1">Light</option><option value="2">Strong</option></select></label>
+      <label class="field"><span>Sky (when dry)</span><select name="sky"><option value="clear">Clear</option><option value="partly">Partly cloudy</option><option value="overcast">Overcast</option></select></label>
+    </div>
+    <label class="check"><input type="checkbox" name="fog"> <span>Morning fog</span></label>
+    <p class="muted small">Snow or rain is picked from the temperature: snow at 32°F and below.</p>
+    <div class="row">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" value="save">Set weather</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="timeDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog">
+    <h2>In-game time</h2>
+    <div class="time-now" id="timeNow"></div>
+    <div class="clock-set">
+      <label class="field"><span>Time of day</span><input type="time" id="clockInput"></label>
+      <button type="button" class="btn primary" id="clockSetBtn">Set time</button>
+    </div>
+    <div class="clock-quick">
+      <button type="button" class="btn small" data-tod="360">Dawn 6:00</button>
+      <button type="button" class="btn small" data-tod="540">Morning 9:00</button>
+      <button type="button" class="btn small" data-tod="720">Noon 12:00</button>
+      <button type="button" class="btn small" data-tod="900">Afternoon 3:00</button>
+      <button type="button" class="btn small" data-tod="1080">Dusk 6:00</button>
+      <button type="button" class="btn small" data-tod="1260">Night 9:00</button>
+      <button type="button" class="btn small" data-tod="0">Midnight</button>
+    </div>
+    <p class="muted small">Setting a time moves forward to the next time it's that o'clock: later today, or tomorrow if it has passed.</p>
+    <div class="time-grid">
+      <button type="button" class="btn" data-adv="10">+10 min</button>
+      <button type="button" class="btn" data-adv="60">+1 hour</button>
+      <button type="button" class="btn" data-adv="480">+8 hours<small>long rest</small></button>
+      <button type="button" class="btn" data-adv="dawn">Next dawn<small>6:00 AM</small></button>
+      <button type="button" class="btn" data-adv="1440">+1 day</button>
+      <button type="button" class="btn" data-adv="10080">+1 week</button>
+    </div>
+    <div class="time-back">
+      <span class="muted">Fix a mistake:</span>
+      <button type="button" class="btn small" data-adv="-60">−1 hour</button>
+      <button type="button" class="btn small" data-adv="-1440">−1 day</button>
+    </div>
+    <details class="set-exact">
+      <summary>Set an exact date and time</summary>
+      <div id="timePicker"></div>
+      <div class="row"><button type="button" class="btn" id="timeSetBtn">Set</button></div>
+    </details>
+    <div class="row"><button class="btn primary" value="close">Done</button></div>
+  </form>
+</dialog>
+
+<dialog id="deathDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog" id="deathForm">
+    <h2 id="deathTitle">Log a death</h2>
+    <label class="field"><span>How did it happen?</span>
+      <textarea name="note" rows="2" placeholder="Frozen solid by Auril's breath"></textarea></label>
+    <div class="field"><span>When</span><div id="deathPicker"></div></div>
+    <label class="check" id="deathFavorRow"><input type="checkbox" name="favor"> <span>Use their <b>Favor of Fate</b> coin to bring them back</span></label>
+    <div class="row">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" value="save">Log death</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="pcDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog" id="pcForm">
+    <h2 id="pcTitle">Character</h2>
+    <label class="field"><span>Name</span><input name="name" required autocomplete="off"></label>
+    <div class="field-row">
+      <label class="field"><span>Ancestry</span><input name="ancestry" autocomplete="off" placeholder="Gold Dragonborn"></label>
+      <label class="field"><span>Class &amp; level</span><input name="classes" autocomplete="off" placeholder="Monk 7 (Way of the Long Death)"></label>
+    </div>
+    <div class="field-row">
+      <label class="field"><span>Player</span><input name="player" autocomplete="off"></label>
+      <label class="field"><span>Disease immunity level</span><input name="immunity" type="number" inputmode="numeric" min="0" max="20" placeholder="0 = none"></label>
+    </div>
+    <p class="muted small">For features like a paladin's Divine Health, enter the class level. Darker Dungeons: levels 1–5 resist up to DC 15, 6–10 up to DC 20, 11–15 up to DC 25, 16+ every disease.</p>
+    <div class="field-row three">
+      <label class="field"><span>Max HP</span><input name="maxHp" type="number" inputmode="numeric" min="0"></label>
+      <label class="field"><span>AC</span><input name="ac" type="number" inputmode="numeric" min="0"></label>
+      <label class="field"><span>Passive Perception</span><input name="pp" type="number" inputmode="numeric" min="0"></label>
+    </div>
+    <div class="row">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="calDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog" id="calForm">
+    <h2>Calendar</h2>
+    <p class="muted small">This campaign's calendar: its months, weekdays and moons. Changing it keeps every date in the campaign at the same day count, so check the current date afterwards.</p>
+    <div class="field-row">
+      <label class="field"><span>Name</span><input name="name" autocomplete="off"></label>
+      <label class="field"><span>Era (after the year, like "DR")</span><input name="era" autocomplete="off"></label>
+    </div>
+    <label class="field"><span>Months, one per line: name, days</span><textarea name="months" rows="7"></textarea></label>
+    <label class="field"><span>Weekdays, in order, separated by commas</span><input name="weekdays" autocomplete="off"></label>
+    <label class="field"><span>Moons, one per line: name, days per cycle, color (optional)</span><textarea name="moons" rows="2"></textarea></label>
+    <label class="field"><span>Holidays, one per line: name, month number, day, number of days (optional)</span><textarea name="events" rows="3"></textarea></label>
+    <label class="field"><span>When each season starts: month number and day</span>
+      <div class="field-row three" style="grid-template-columns:repeat(4,1fr)">
+        <input name="spring" placeholder="Spring: 3 20" autocomplete="off"><input name="summer" placeholder="Summer: 6 21" autocomplete="off">
+        <input name="autumn" placeholder="Autumn: 9 22" autocomplete="off"><input name="winter" placeholder="Winter: 12 21" autocomplete="off">
+      </div></label>
+    <p class="warn small" id="calErr" hidden></p>
+    <div class="row"><button type="button" class="btn" id="calDefault">Use the default calendar</button><span class="push"></span><button value="cancel" class="btn">Cancel</button><button type="button" class="btn primary" id="calSave">Save</button></div>
+  </form>
+</dialog>
+<dialog id="settingsDlg" class="dlg-wrap">
+  <form class="dlg" method="dialog">
+    <h2>Settings</h2>
+    <section class="set">
+      <h3>Campaign</h3>
+      <div class="field-row">
+        <label class="field"><span>Current campaign</span><select id="campaignSel"></select></label>
+        <label class="field"><span>Name</span><input id="campaignName" autocomplete="off"></label>
+      </div>
+      <p class="muted small">Optional systems for this campaign. With all of them off, the app follows the rules as written.</p>
+      <label class="check"><input type="checkbox" id="diseasesToggle"> <span>Disease tracking with stages (Darker Dungeons)</span></label>
+      <label class="check"><input type="checkbox" id="survivalToggle"> <span>Survival conditions: hunger, thirst, fatigue, temperature (Darker Dungeons)</span></label>
+      <div class="ob-set"><label class="check"><input type="checkbox" id="obToggle"> <span>Random outbreaks (homebrew)</span></label>
+        <select id="obFreq" aria-label="How often"><option value="rare">Rarely</option><option value="normal">Sometimes</option><option value="often">Often</option></select></div>
+      <label class="check"><input type="checkbox" id="trainingToggle"> <span>Downtime training (table rule)</span></label>
+      <label class="check"><input type="checkbox" id="brokerToggle"> <span>Magic item broker (table rule)</span></label>
+      <label class="field"><span>The broker's name</span><input id="brokerName" autocomplete="off" placeholder="The broker"></label>
+      <div class="row left"><button type="button" class="btn" id="calendarBtn">Calendar…</button><span class="muted small" id="calendarName"></span></div>
+      <div id="combineBox" class="combine"></div>
+      <div class="row left"><button type="button" class="btn" id="newCampaignBtn">New campaign</button><button type="button" class="btn danger-text" id="deleteCampaignBtn">Delete this campaign</button></div>
+      <p class="muted small">Each campaign keeps its own party, sessions and in-game date.</p>
+    </section>
+    <section class="set">
+      <h3>Google Drive sync</h3>
+      <div id="syncInfo"></div>
+    </section>
+    <section class="set">
+      <h3>Backup file</h3>
+      <p class="muted small">A backup file is your safety net, separate from sync. Save one now and then. Loading a backup merges it in: anything newer wins, nothing is deleted.</p>
+      <div class="row left">
+        <button type="button" class="btn" id="saveBackupBtn">Save backup file</button>
+        <button type="button" class="btn" id="loadBackupBtn">Load backup file</button>
+        <input type="file" id="backupFile" accept=".json,application/json" hidden>
+      </div>
+      <p class="muted small" id="lastBackup"></p>
+    </section>
+    <section class="set">
+      <h3>Appearance</h3>
+      <div class="seg" id="themeSeg" role="radiogroup" aria-label="Theme">
+        <button type="button" data-theme="system" role="radio">Match device</button>
+        <button type="button" data-theme="light" role="radio">Light</button>
+        <button type="button" data-theme="dark" role="radio">Dark</button>
+      </div>
+    </section>
+    <section class="set">
+      <h3>About</h3>
+      <p class="muted small" id="storageInfo">Checking storage…</p>
+      <p><button type="button" class="btn small" id="updateCheckBtn">Check for updates</button></p>
+      <p class="muted small">Fonts: Alegreya and Alegreya Sans, SIL Open Font License.</p>
+    </section>
+    <div class="row"><button class="btn primary" value="close">Done</button></div>
+  </form>
+</dialog>
+
+<dialog id="confirmDlg" class="dlg-wrap">
+  <form class="dlg narrow" method="dialog">
+    <h2 id="confirmTitle"></h2>
+    <p id="confirmBody"></p>
+    <div class="row">
+      <button class="btn" value="no">Cancel</button>
+      <button class="btn primary" value="yes" id="confirmYes"></button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
