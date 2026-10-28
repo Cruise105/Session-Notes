@@ -265,7 +265,12 @@ export async function initSync(helpers) {
   $('#settingsBtn').addEventListener('click', renderStatus);
   $('#campaignBtn').addEventListener('click', renderStatus);
 
-  if (!ss.connected) return;
+  if (!ss.connected) {
+    // Signed in through the launcher already? Connect Drive here on its own, so nobody has to hunt for the button.
+    if (!tokenValid() && core?.refreshNow) { try { await core.refreshNow(); } catch { /* */ } }
+    if (tokenValid()) await syncNow({ interactive: true, quiet: true });
+    return;
+  }
   syncNow({ quiet: true });
   startAuto();
 }
